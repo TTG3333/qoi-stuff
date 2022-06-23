@@ -2,8 +2,6 @@ from PIL import Image
 import os
 os.chdir(os.path.dirname(__file__))
 
-# TODO: improve boolean retrieval logic
-
 def decoder(filename):
     with open(filename, "rb") as F:
         data = F.read()
