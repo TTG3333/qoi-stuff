@@ -2,7 +2,7 @@ from PIL import Image
 import os
 os.chdir(os.path.dirname(__file__))
 
-def decoder(filename):
+def decoder(filename: str) -> None:
     with open(filename, "rb") as F:
         data = F.read()
     if data[:4] != b"qoif":
@@ -98,7 +98,57 @@ def decoder(filename):
     img.close()
 
 
-def encoder(filename):
-    img = Image.open(filename, "r")
-
-decoder("dice.qoi")
+def encoder(filename: str) -> None:
+    img = Image.open(filename, "r").convert("RGBA")
+    data = bytearray(b"qoif")
+    width, height = img.size
+    data.extend(width.to_bytes(4, "big"))
+    data.extend(height.to_bytes(4, "big"))
+    if img.mode == "RGBA":
+        data.append(4)
+    else:
+        raise ValueError("The colour channel count isn't valid")
+    data.append(0)
+    previous = [[0]*4 for _ in range(64)]
+    prev = [0, 0, 0, 255]
+    current = [0, 0, 0, 255]
+    pos = (prev[0] * 3 + prev[1] * 5 + prev[2] * 7 + prev[3] * 11) % 64
+    previous[pos] = list(prev)
+    pixelCount = 0
+    
+    while pixelCount < width * height:
+        current = list(img.getpixel((pixelCount % width, pixelCount // width)))
+        if current == prev: # Run
+            for i in range(62):
+                if pixelCount + i >= width * height:
+                    i -= 1
+                    break
+                if list(img.getpixel(((pixelCount + i) % width, (pixelCount + i) // width))) != prev:
+                    i -= 1
+                    break
+            data.append(192 + i)
+            pixelCount += i
+        elif current in previous: # Index
+            data.append(previous.index(current))
+        else: # get the r, g, b, a deltas, convert the r, g, b deltas from [-255, 255] to [-127, 127]
+            r, g, b, a = (current[0] - prev[0]) % 256, (current[1] - prev[1]) % 256, (current[2] - prev[2]) % 256, current[3] - prev[3]
+            r -= 256 if r >= 128 else 0
+            g -= 256 if g >= 128 else 0
+            b -= 256 if b >= 128 else 0
+            if r >= -2 and r <= 1 and g >= -2 and g <= 1 and b >= -2 and b <= 1 and a == 0: # Diff
+                data.append(64 + ((r + 2) << 4) + ((g + 2) << 2) + (b + 2))
+            elif g >= -32 and g <= 31 and r - g >= -8 and r - g <= 7 and b - g >= -8 and b - g <= 7 and a == 0: # Luma
+                data.extend([160 + g, ((r - g + 8) << 4) + (b - g + 8)])
+            elif a == 0: # RGB
+                data.extend([254, *current[:3]])
+            else: # RGBA
+                data.extend([255, *current])
+        pos = (current[0] * 3 + current[1] * 5 + current[2] * 7 + current[3] * 11) % 64
+        previous[pos] = list(current)
+        prev = list(current)
+        pixelCount += 1
+    
+    data.extend([0, 0, 0, 0, 0, 0, 0, 1])
+    img.close()
+    with open(filename + ".qoi", "bw") as F:
+        F.write(data)
