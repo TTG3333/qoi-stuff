@@ -79,7 +79,7 @@ def decoder(filename: str) -> None:
                 img.putpixel((pixelCount % width, pixelCount // width), (current["r"], current["g"], current["b"], current["a"]))
             firstByte += 2
             pixelCount += 1
-        elif data[firstByte] // 64 == 3: # Run
+        elif data[firstByte] >> 6 == 3: # Run
             count = (data[firstByte] & 63) + 1
             for i in range(count):
                 if img.mode == "RGB":
