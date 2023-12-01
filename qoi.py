@@ -99,13 +99,19 @@ def decoder(filename: str) -> None:
 
 
 def encoder(filename: str) -> None:
-    img = Image.open(filename, "r").convert("RGBA")
+    img = Image.open(filename, "r")
+    if img.mode[:-1] in "aA": # Only the colour formats with an alpha channel end with an a
+        img.convert("RGBA")
+    else:
+        img.convert("RGB")
     data = bytearray(b"qoif")
     width, height = img.size
     data.extend(width.to_bytes(4, "big"))
     data.extend(height.to_bytes(4, "big"))
     if img.mode == "RGBA":
         data.append(4)
+    if img.mode == "RGB":
+        data.append(3)
     else:
         raise ValueError("The colour channel count isn't valid")
     data.append(0)
